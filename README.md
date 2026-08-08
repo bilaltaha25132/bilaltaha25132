@@ -65,3 +65,4 @@ RAG over video transcripts, producing summaries, timestamped Q&A, highlight reel
 ---
 
 Currently at EdgeFirm, building things that have to work in production rather than in a demo. If you are working on LLM products that real users touch, I would enjoy talking.
+
