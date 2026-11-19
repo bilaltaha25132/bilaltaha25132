@@ -3,12 +3,16 @@
     python scripts/build.py              # all assets (activity needs GITHUB_TOKEN)
     python scripts/build.py --activity   # only the contribution heatmap (what CI runs)
 
-SVGs shown through <img> can't load web fonts, so each file embeds a Geist subset
-holding only the glyphs it uses.
+The look follows Visit Abu Dhabi, the product I build the AI concierge for: the
+Seaport-to-Palm gradient, Sunset orange, Sea teal, and a stacked lowercase lockup.
+Display type is Rakkas, text is Hanken Grotesk, code is Geist Mono (all SIL OFL).
+SVGs shown through <img> can't load web fonts, so each file embeds a subset holding
+only the glyphs it uses.
 """
 import base64
 import io
 import json
+import math
 import os
 import sys
 import urllib.request
@@ -24,15 +28,21 @@ FONTS = Path(__file__).resolve().parent / "fonts"
 OUT = ROOT / "assets"
 USER = "bilaltaha25132"
 
+# Visit Abu Dhabi palette: Seaport #003451, Palm #00605F, Sea #00D8CC, Sunset #FF8707, Sandstone #FCEFDE
 THEMES = {
-    "dark": dict(panel="#0F1012", sub="#16171A", line="#25272C", line2="#1C1D21", text="#F2F3F5",
-                 muted="#9A9EA7", faint="#62666F", accent="#7C83F5", ok="#4CB782",
-                 heat=["#18191D", "#272A4A", "#3A4180", "#555DC4", "#8189F6"]),
-    "light": dict(panel="#FFFFFF", sub="#F6F6F7", line="#E4E4E8", line2="#EEEEF1", text="#16171A",
-                  muted="#5F636C", faint="#9A9DA5", accent="#5E6AD2", ok="#2F9E6A",
-                  heat=["#EFEFF2", "#D9DBF7", "#B2B7EF", "#7F87E2", "#5E6AD2"]),
+    "dark": dict(panel="#07161F", sub="#0B2230", line="#183747", line2="#102B3A", text="#FFFFFF",
+                 display="#FCEFDE", muted="#A9BCC4", faint="#6F8893", accent="#FF8707", on_accent="#1A0D00",
+                 sea="#00D8CC", ok="#00D8CC", ghost="#07161F", ghost_line="#2A4B5C",
+                 heat=["#0D2531", "#00474A", "#00605F", "#009086", "#00D8CC"]),
+    "light": dict(panel="#FFFFFF", sub="#FAF9F5", line="#E3DED4", line2="#EEEAE2", text="#111111",
+                  display="#111111", muted="#565A5C", faint="#898C8D", accent="#FF8707", on_accent="#1A0D00",
+                  sea="#00605F", ok="#009086", ghost="#FFFFFF", ghost_line="#D3CCBF",
+                  heat=["#EFEBE4", "#CBE7E3", "#7FC8C1", "#009086", "#00605F"]),
 }
-SANS, MONO = "Geist", "Geist Mono"
+FACES = {"sans": ("Hanken Grotesk", "hanken-grotesk-variable.woff2", "100 900"),
+         "mono": ("Geist Mono", "geist-mono-variable.woff2", "100 900"),
+         "disp": ("Rakkas", "rakkas.woff2", "400")}
+ON_GRAD = dict(text="#FFFFFF", muted="#B8CDD4", faint="#7FA0AB", line="rgba(255,255,255,.22)")
 
 
 # ---------------------------------------------------------------- primitives
@@ -55,36 +65,55 @@ def _subset(path, chars):
 _METRICS = {}
 
 
-def width(s, size, mono=False):
+def width(s, size, font="sans"):
     """Advance width of `s` in px, read from the font's default instance."""
-    key = "geist-mono-variable.woff2" if mono else "geist-variable.woff2"
-    if key not in _METRICS:
-        f = TTFont(FONTS / key)
-        _METRICS[key] = (f.getBestCmap(), f["hmtx"].metrics, f["head"].unitsPerEm)
-    cmap, hmtx, upm = _METRICS[key]
+    file = FACES[font][1]
+    if file not in _METRICS:
+        f = TTFont(FONTS / file)
+        _METRICS[file] = (f.getBestCmap(), f["hmtx"].metrics, f["head"].unitsPerEm)
+    cmap, hmtx, upm = _METRICS[file]
     return sum(hmtx[cmap[ord(ch)]][0] for ch in s if ord(ch) in cmap) * size / upm
 
 
 def svg(w, h, title, desc, body, css=""):
     chars = set(title + desc + body) | set(" 0123456789")
-    faces = "".join(
-        f"@font-face{{font-family:'{fam}';font-weight:100 900;"
-        f"src:url(data:font/woff2;base64,{_subset(FONTS / file, chars)}) format('woff2')}}"
-        for fam, file in ((SANS, "geist-variable.woff2"), (MONO, "geist-mono-variable.woff2")))
+    used = ["sans"] + [k for k in ("mono", "disp") if f'class="{k[0]}"' in body]
+    faces = "".join(f"@font-face{{font-family:'{FACES[k][0]}';font-weight:{FACES[k][2]};"
+                    f"src:url(data:font/woff2;base64,{_subset(FONTS / FACES[k][1], chars)}) format('woff2')}}"
+                    for k in used)
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
             f'role="img" aria-labelledby="t d"><title id="t">{escape(title)}</title><desc id="d">{escape(desc)}</desc>'
-            f"<style>{faces}text{{font-family:'{SANS}',system-ui,sans-serif;font-feature-settings:'tnum'}}"
-            f".m{{font-family:'{MONO}',ui-monospace,monospace}}{css}</style>{body}</svg>\n")
+            f"<style>{faces}text{{font-family:'Hanken Grotesk',system-ui,sans-serif;font-feature-settings:'tnum'}}"
+            f".m{{font-family:'Geist Mono',ui-monospace,monospace}}.d{{font-family:'Rakkas',Georgia,serif}}"
+            f"{css}</style>{body}</svg>\n")
 
 
-def t(x, y, s, size, fill, weight=400, anchor="start", mono=False, track=0.0, extra=""):
-    cls = ' class="m"' if mono else ""
+def t(x, y, s, size, fill, weight=400, anchor="start", font="sans", track=0.0, extra=""):
+    cls = {"sans": "", "mono": ' class="m"', "disp": ' class="d"'}[font]
     ls = f' letter-spacing="{track}em"' if track else ""
     return (f'<text{cls} x="{x}" y="{y}" font-size="{size}" font-weight="{weight}" fill="{fill}" '
             f'text-anchor="{anchor}"{ls} {extra}>{escape(s)}</text>')
 
 
-def panel(w, h, c, rx=16):
+def gradient(gid, x, y, w, h):
+    """The Ask Abu Dhabi button gradient: linear-gradient(150deg, #000 -21.26%, #003451 33.47%, #00605F 115.56%)."""
+    a = math.radians(150)
+    dx, dy = math.sin(a), -math.cos(a)
+    half = (abs(w * dx) + abs(h * dy)) / 2
+    cx, cy = x + w / 2, y + h / 2
+    lo, hi = -0.2126, 1.1556
+
+    def at(p):
+        return cx + dx * half * (2 * p - 1), cy + dy * half * (2 * p - 1)
+
+    (x1, y1), (x2, y2) = at(lo), at(hi)
+    off = lambda p: (p - lo) / (hi - lo)
+    return (f'<linearGradient id="{gid}" gradientUnits="userSpaceOnUse" x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}">'
+            f'<stop offset="0" stop-color="#000"/><stop offset="{off(0.3347):.4f}" stop-color="#003451"/>'
+            f'<stop offset="1" stop-color="#00605F"/></linearGradient>')
+
+
+def panel(w, h, c, rx=20):
     return f'<rect x="0.5" y="0.5" width="{w - 1}" height="{h - 1}" rx="{rx}" fill="{c["panel"]}" stroke="{c["line"]}"/>'
 
 
@@ -94,66 +123,110 @@ def check(cx, cy, c, r=9):
             f'stroke-linecap="round" stroke-linejoin="round"/>')
 
 
+def arrow(x, y, s, color, sw=1.8):
+    """A north-east arrow whose box starts at (x, y) with side s."""
+    return (f'<path d="M{x} {y + s} L{x + s} {y} M{x + s * 0.3} {y} H{x + s} V{y + s * 0.7}" fill="none" '
+            f'stroke="{color}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"/>')
+
+
+def lockup(x, base, small, big, s_size, b_size, color):
+    """Two-line stacked lowercase lockup, proportioned like the Experience Abu Dhabi logo."""
+    return (t(x + 0.09 * b_size, base, small, s_size, color, font="disp")
+            + t(x, base + 0.84 * b_size, big, b_size, color, font="disp"))
+
+
 # ---------------------------------------------------------------- hero
 
 def hero(c):
-    W, H = 1280, 400
-    b = [panel(W, H, c, 20)]
-    b.append(t(72, 98, "Full Stack AI Engineer · Karachi", 21, c["muted"], 450))
-    b.append(t(68, 178, "Bilal Taha", 84, c["text"], 600, track=-0.045))
-    for i, line in enumerate(["I build LLM products end to end: RAG pipelines",
-                              "and LangGraph agents, the APIs around them,",
-                              "and the interfaces people actually use."]):
-        b.append(t(72, 236 + i * 34, line, 24, c["text"] if i == 2 else c["muted"], 400, track=-0.01))
-    b.append(f'<circle cx="78" cy="344" r="5" fill="{c["ok"]}"/>')
-    b.append(t(94, 350, "Now building the AI concierge for Abu Dhabi tourism", 18, c["faint"], 450))
+    W, H = 1280, 470
+    b = [f"<defs>{gradient('g', 0, 0, W, H)}<clipPath id='k'><rect width='{W}' height='{H}' rx='24'/></clipPath></defs>",
+         f'<g clip-path="url(#k)"><rect width="{W}" height="{H}" fill="url(#g)"/>',
+         # setting sun, low on the horizon at the right edge
+         f'<circle cx="{W - 110}" cy="{H + 70}" r="160" fill="none" stroke="{c["accent"]}" stroke-opacity=".28"/>'
+         f'<circle cx="{W - 110}" cy="{H + 70}" r="215" fill="none" stroke="{c["accent"]}" stroke-opacity=".14"/>'
+         f'<circle cx="{W - 110}" cy="{H + 70}" r="104" fill="{c["accent"]}" fill-opacity=".16"/></g>',
+         f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="24" fill="none" stroke="{c["line"]}"/>']
+    b.append(lockup(64, 112, "muhammad", "bilal taha", 58, 140, "#FFFFFF"))
+    b.append(t(68, 298, "Full Stack AI Engineer · Karachi", 25, "#FCEFDE", 600, track=-0.01))
+    b.append(t(68, 340, "I build LLM products end to end: RAG pipelines and LangGraph", 21, ON_GRAD["muted"], 400))
+    b.append(t(68, 370, "agents, the APIs around them, and the interfaces people use.", 21, ON_GRAD["muted"], 400))
+    label = "Now building the AI concierge for Abu Dhabi tourism"
+    pw = width(label, 17, "sans") * 1.04 + 64
+    b.append(f'<rect x="68" y="398" width="{pw:.0f}" height="44" rx="22" fill="{c["accent"]}"/>'
+             f'<circle cx="92" cy="420" r="5" fill="{c["on_accent"]}"/>'
+             + t(108, 426, label, 17, c["on_accent"], 600))
 
     # agent graph
-    nodes = {"q": ("query", 760, 200, 100), "g": ("guardrails", 884, 200, 124),
-             "a": ("agent", 1018, 200, 104), "r": ("retrieval", 1166, 110, 124),
-             "m": ("maps", 1166, 200, 124), "i": ("itinerary", 1166, 290, 124),
-             "s": ("SSE → UI", 1018, 316, 124)}
+    nodes = {"q": ("query", 800, 196, 96), "g": ("guardrails", 918, 196, 120),
+             "a": ("agent", 1046, 196, 96), "r": ("retrieval", 1168, 106, 116),
+             "m": ("maps", 1168, 196, 116), "i": ("itinerary", 1168, 286, 116),
+             "s": ("SSE → UI", 1046, 312, 116)}
     hh = 40
 
     def R(k): n = nodes[k]; return n[1] + n[3] / 2, n[2]
     def L(k): n = nodes[k]; return n[1] - n[3] / 2, n[2]
-    paths = {"qg": f"M{R('q')[0]},200 H{L('g')[0]}", "ga": f"M{R('g')[0]},200 H{L('a')[0]}",
-             "ar": f"M{R('a')[0]},194 C1090,194 1070,110 {L('r')[0]},110", "am": f"M{R('a')[0]},200 H{L('m')[0]}",
-             "ai": f"M{R('a')[0]},206 C1090,206 1070,290 {L('i')[0]},290", "as": f"M1018,{200 + hh / 2} V{316 - hh / 2}"}
+    paths = {"qg": f"M{R('q')[0]},196 H{L('g')[0]}", "ga": f"M{R('g')[0]},196 H{L('a')[0]}",
+             "ar": f"M{R('a')[0]},190 C1104,190 1086,106 {L('r')[0]},106", "am": f"M{R('a')[0]},196 H{L('m')[0]}",
+             "ai": f"M{R('a')[0]},202 C1104,202 1086,286 {L('i')[0]},286", "as": f"M1046,{196 + hh / 2} V{312 - hh / 2}"}
     for k, d in paths.items():
-        b.append(f'<path id="p{k}" d="{d}" fill="none" stroke="{c["line"]}" stroke-width="1.5"/>')
+        b.append(f'<path id="p{k}" d="{d}" fill="none" stroke="#FFFFFF" stroke-opacity=".28" stroke-width="1.5"/>')
     for k, (label, cx, cy, w) in nodes.items():
         hot = k == "a"
-        b.append(f'<rect x="{cx - w / 2}" y="{cy - hh / 2}" width="{w}" height="{hh}" rx="9" fill="{c["sub"]}" '
-                 f'stroke="{c["accent"] if hot else c["line"]}" stroke-width="{1.5 if hot else 1}"/>')
-        b.append(t(cx, cy + 5.5, label, 15, c["text"] if hot else c["muted"], 500 if hot else 400, "middle", mono=True))
+        b.append(f'<rect x="{cx - w / 2}" y="{cy - hh / 2}" width="{w}" height="{hh}" rx="20" '
+                 f'fill="{c["accent"] if hot else "#FFFFFF"}" fill-opacity="{1 if hot else 0.07}" '
+                 f'stroke="{c["accent"] if hot else "#FFFFFF"}" stroke-opacity="{1 if hot else 0.3}"/>')
+        b.append(t(cx, cy + 5.5, label, 15, c["on_accent"] if hot else "#E3EEF1", 600 if hot else 400, "middle", font="mono"))
     for k, begin in (("qg", 0), ("ga", 0.5), ("ar", 1.0), ("am", 1.1), ("ai", 1.2), ("as", 1.9)):
-        b.append(f'<circle r="3.2" fill="{c["accent"]}" opacity="0"><animateMotion dur="3.4s" begin="{begin}s" '
+        b.append(f'<circle r="3.4" fill="#00D8CC" opacity="0"><animateMotion dur="3.4s" begin="{begin}s" '
                  f'repeatCount="indefinite" keyPoints="0;1;1" keyTimes="0;0.2;1" calcMode="linear"><mpath href="#p{k}"/>'
                  f'</animateMotion><animate attributeName="opacity" dur="3.4s" begin="{begin}s" repeatCount="indefinite" '
                  f'values="0;1;1;0;0" keyTimes="0;0.02;0.18;0.21;1"/></circle>')
-    return svg(W, H, "Bilal Taha, Full Stack AI Engineer",
-               "Full Stack AI Engineer in Karachi. I build LLM products end to end: RAG pipelines and LangGraph agents, "
-               "the APIs around them, and the interfaces people use. Now building the AI concierge for Abu Dhabi tourism.",
-               "".join(b))
+    return svg(W, H, "Muhammad Bilal Taha, Full Stack AI Engineer",
+               "Muhammad Bilal Taha. Full Stack AI Engineer in Karachi. I build LLM products end to end: RAG pipelines "
+               "and LangGraph agents, the APIs around them, and the interfaces people use. Now building the AI "
+               "concierge for Abu Dhabi tourism.", "".join(b))
+
+
+# ---------------------------------------------------------------- section headings
+
+HEADINGS = {
+    "now": ("now building", "the abu dhabi concierge", "Now: the AI concierge for Abu Dhabi tourism"),
+    "work": ("selected", "work", "Selected work"),
+    "about": ("about me,", "as code", "About me, as code"),
+    "writing": ("from the", "blog", "Writing"),
+    "activity": ("every day,", "shipping", "Activity"),
+}
+
+
+def heading(c, key):
+    small, big, alt = HEADINGS[key]
+    S, B = 30, 64
+    w = int(max(width(small, S, "disp") + 0.09 * B, width(big, B, "disp")) + 12)
+    H = 112
+    body = (lockup(2, 32, small, big, S, B, c["display"])
+            .replace(f'fill="{c["display"]}"', f'fill="{c["sea"]}"', 1))
+    return svg(w, H, alt, alt, body)
 
 
 # ---------------------------------------------------------------- link buttons
 
 def button(c, label, primary=False):
-    w = int(20 + width(label, 17) + 14 + width("↗", 15) + 18)
-    H = 48
-    fill, fg, stroke = (c["text"], c["panel"], c["text"]) if primary else (c["panel"], c["text"], c["line"])
-    body = (f'<rect x="0.5" y="0.5" width="{w - 1}" height="{H - 1}" rx="11" fill="{fill}" stroke="{stroke}"/>'
-            + t(20, 30.5, label, 17, fg, 500, track=-0.01)
-            + t(w - 18, 30.5, "↗", 15, c["faint"] if not primary else fg, 400, "end"))
+    H = 52
+    w = int(26 + width(label, 18) * 1.03 + 14 + 13 + 24)
+    if primary:
+        fill, fg, stroke = c["accent"], c["on_accent"], c["accent"]
+    else:
+        fill, fg, stroke = c["ghost"], c["text"], c["ghost_line"]
+    body = (f'<rect x="0.75" y="0.75" width="{w - 1.5}" height="{H - 1.5}" rx="{(H - 1.5) / 2}" fill="{fill}" '
+            f'stroke="{stroke}" stroke-width="1.5"/>' + t(26, 32.5, label, 18, fg, 600)
+            + arrow(w - 24 - 11, 20, 11, fg if primary else c["accent"]))
     return svg(w, H, label, f"Link: {label}", body)
 
 
 # ---------------------------------------------------------------- metrics
 
 def metrics(c):
-    W, H = 1280, 168
+    W, H = 1280, 184
     tiles = [("19", "agent tools in production"), ("300+", "daily users on one platform"),
              ("2", "live AI products, Abu Dhabi"), ("4.6k", "contributions since 2024")]
     b = [panel(W, H, c)]
@@ -161,9 +234,10 @@ def metrics(c):
     for i, (num, label) in enumerate(tiles):
         x = i * cw
         if i:
-            b.append(f'<line x1="{x}" y1="28" x2="{x}" y2="{H - 28}" stroke="{c["line"]}"/>')
-        b.append(t(x + 40, 92, num, 56, c["text"], 500, track=-0.04))
-        b.append(t(x + 40, 130, label, 18.5, c["muted"], 400))
+            b.append(f'<line x1="{x}" y1="32" x2="{x}" y2="{H - 32}" stroke="{c["line"]}"/>')
+        b.append(f'<rect x="{x + 40}" y="34" width="28" height="4" rx="2" fill="{c["accent"]}"/>')
+        b.append(t(x + 38, 110, num, 64, c["display"], font="disp"))
+        b.append(t(x + 40, 148, label, 18.5, c["muted"], 400))
     return svg(W, H, "Impact in numbers",
                "19 agent tools in production. 300+ daily users on one platform. 2 public AI products for DCT Abu Dhabi. "
                "4.6k contributions since 2024.", "".join(b))
@@ -182,64 +256,70 @@ def appear(cls, at):
 
 
 def trace(c):
-    W, H = 1280, 700
+    W, H, TOP = 1280, 720, 88
     css = ["g{transform-box:fill-box}", ".pulse{animation:pulse 1.6s ease-in-out infinite}"
            "@keyframes pulse{50%{opacity:.35}}"]
-    b = [panel(W, H, c, 18)]
-    b.append(f'<line x1="0" y1="72" x2="{W}" y2="72" stroke="{c["line"]}"/>')
-    b.append(t(32, 44, "Ask Abu Dhabi", 21, c["text"], 600, track=-0.02))
-    b.append(t(32 + width("Ask Abu Dhabi", 21) * 0.98 + 10, 44, "Agent trace", 21, c["faint"], 400, track=-0.01))
-    b.append(f'<circle class="pulse" cx="{W - 150}" cy="37" r="5" fill="{c["ok"]}"/>')
-    b.append(t(W - 136, 43, "Production", 17, c["muted"], 450))
-    b.append(f'<line x1="600" y1="72" x2="600" y2="{H}" stroke="{c["line"]}"/>')
+    b = [f"<defs>{gradient('g', 0, 0, W, TOP)}<clipPath id='k'><rect width='{W}' height='{H}' rx='20'/></clipPath></defs>",
+         f'<g clip-path="url(#k)"><rect width="{W}" height="{H}" fill="{c["panel"]}"/>'
+         f'<rect width="{W}" height="{TOP}" fill="url(#g)"/></g>',
+         f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="20" fill="none" stroke="{c["line"]}"/>']
+    b.append(t(34, 56, "ask abu dhabi", 36, "#FFFFFF", font="disp"))
+    b.append(t(34 + width("ask abu dhabi", 36, "disp") + 16, 55, "Agent trace", 20, ON_GRAD["muted"], 500))
+    pill = "Production"
+    pw = width(pill, 16) * 1.04 + 46
+    b.append(f'<rect x="{W - 34 - pw:.0f}" y="26" width="{pw:.0f}" height="36" rx="18" fill="#FFFFFF" fill-opacity=".1" '
+             f'stroke="#FFFFFF" stroke-opacity=".25"/><circle class="pulse" cx="{W - 34 - pw + 20:.0f}" cy="44" r="5" fill="#00D8CC"/>'
+             + t(W - 34 - pw + 34, 49.5, pill, 16, "#FFFFFF", 500))
+    b.append(f'<line x1="600" y1="{TOP}" x2="600" y2="{H}" stroke="{c["line"]}"/>')
 
     # conversation
-    b.append(t(32, 116, "Conversation", 16, c["faint"], 450))
+    b.append(t(32, 132, "Conversation", 16, c["faint"], 500))
     css.append(appear("u", 0.4))
-    b.append(f'<g class="u"><rect x="196" y="140" width="372" height="78" rx="14" fill="{c["sub"]}" stroke="{c["line2"]}"/>'
-             + t(216, 172, "2 days in Abu Dhabi with the kids.", 19, c["text"], 400)
-             + t(216, 200, "We love beaches. Can you plan it?", 19, c["text"], 400) + "</g>")
-    reply = [("Here's a relaxed two-day plan:", c["text"], 500, 6.6),
+    b.append(f'<g class="u"><rect x="186" y="154" width="382" height="80" rx="20" fill="#00605F"/>'
+             + t(208, 187, "2 days in Abu Dhabi with the kids.", 19, "#FFFFFF", 450)
+             + t(208, 215, "We love beaches. Can you plan it?", 19, "#FFFFFF", 450) + "</g>")
+    reply = [("Here's a relaxed two-day plan:", c["text"], 600, 6.6),
              ("Day 1, Saadiyat. Louvre Abu Dhabi in the", c["muted"], 400, 7.1),
              ("morning, lunch by the water, then the", c["muted"], 400, 7.5),
              ("beach until sunset.", c["muted"], 400, 7.9),
              ("Day 2, Yas Island. Warner Bros. World,", c["muted"], 400, 8.3),
              ("then Yas Waterworld in the afternoon.", c["muted"], 400, 8.7)]
     css.append(appear("rl", 6.4))
-    b.append(f'<g class="rl">' + t(32, 262, "Concierge", 16, c["faint"], 450) + "</g>")
+    b.append(f'<g class="rl">' + t(32, 278, "Concierge", 16, c["faint"], 500) + "</g>")
     for i, (s, col, wt, at) in enumerate(reply):
         css.append(appear(f"r{i}", at))
-        b.append(f'<g class="r{i}">' + t(32, 298 + i * 30 + (8 if i else 0), s, 19, col, wt) + "</g>")
+        b.append(f'<g class="r{i}">' + t(32, 314 + i * 30 + (8 if i else 0), s, 19, col, wt) + "</g>")
     places = [("Louvre Abu Dhabi", "Museum · Saadiyat"), ("Saadiyat Beach", "Beach · Saadiyat"),
               ("Yas Waterworld", "Water park · Yas Island")]
+    b.append(f"<defs>{gradient('tile', 0, 0, 32, 32)}</defs>")
     for i, (name, meta) in enumerate(places):
-        y = 498 + i * 58
+        y = 514 + i * 62
         css.append(appear(f"k{i}", 9.2 + i * 0.3))
-        b.append(f'<g class="k{i}"><rect x="32" y="{y}" width="536" height="48" rx="10" fill="{c["panel"]}" stroke="{c["line"]}"/>'
-                 f'<rect x="44" y="{y + 12}" width="24" height="24" rx="6" fill="{c["sub"]}" stroke="{c["line"]}"/>'
-                 + t(56, y + 29, name[0], 13, c["muted"], 600, "middle")
-                 + t(82, y + 30, name, 17, c["text"], 500) + t(552, y + 30, meta, 15.5, c["faint"], 400, "end") + "</g>")
+        b.append(f'<g class="k{i}"><rect x="32" y="{y}" width="536" height="52" rx="14" fill="{c["sub"]}" stroke="{c["line"]}"/>'
+                 f'<g transform="translate(42 {y + 10})"><rect width="32" height="32" rx="9" fill="url(#tile)"/></g>'
+                 + t(58, y + 33, name[0].lower(), 19, "#FFFFFF", font="disp", anchor="middle")
+                 + t(88, y + 32.5, name, 17, c["text"], 600) + t(552, y + 32.5, meta, 15.5, c["faint"], 400, "end") + "</g>")
 
     # tool calls
-    b.append(t(632, 116, "Tool calls", 16, c["faint"], 450))
+    b.append(t(632, 132, "Tool calls", 16, c["faint"], 500))
     calls = [("check_moderation", "message", "safe", 1.3),
              ("search_attractions", 'tags=["family", "beach"]', "14 results", 2.1),
              ("search_dining", 'near="Saadiyat Island"', "9 results", 2.9),
              ("calculate_distance_to_place", '"Louvre Abu Dhabi"', "6.2 km", 3.7),
              ("search_itineraries", "days=2, pace=relaxed", "3 results", 4.5),
              ("select_cards_to_display", "k=3", "3 cards", 5.3)]
-    y = 140
+    y = 156
     for i, (fn, args, res, at) in enumerate(calls):
         css.append(appear(f"c{i}", at))
         b.append(f'<g class="c{i}">' + check(648, y + 22, c)
-                 + t(672, y + 20, fn, 17, c["text"], 450, mono=True)
-                 + t(672, y + 44, args, 15, c["faint"], 400, mono=True)
-                 + t(1248, y + 20, res, 15.5, c["muted"], 400, "end", mono=True)
+                 + t(672, y + 20, fn, 17, c["text"], 450, font="mono")
+                 + t(672, y + 44, args, 15, c["faint"], 400, font="mono")
+                 + t(1248, y + 20, res, 15.5, c["sea"], 500, "end", font="mono")
                  + f'<line x1="632" y1="{y + 62}" x2="1248" y2="{y + 62}" stroke="{c["line2"]}"/></g>')
         y += 70
     css.append(appear("st", 6.1))
     b.append(f'<g class="st"><circle class="pulse" cx="648" cy="{y + 18}" r="5" fill="{c["accent"]}"/>'
-             + t(672, y + 24, "Streaming answer to the widget over SSE", 17, c["text"], 450) + "</g>")
+             + t(672, y + 24, "Streaming answer to the widget over SSE", 17, c["text"], 500) + "</g>")
     css.append(appear("tr", 9.9))
     b.append(f'<g class="tr">' + check(648, y + 62, c) + t(672, y + 68, "Trace sent to Langfuse and Phoenix", 17, c["muted"], 400) + "</g>")
     b.append(t(1248, H - 28, "LangGraph ReAct agent · GPT-4o · 19 tools", 15, c["faint"], 400, "end"))
@@ -282,17 +362,19 @@ CARDS = {
 
 def card(c, key):
     kicker, title, lines, stack, tag = CARDS[key]
-    W, H = 620, 330
-    b = [panel(W, H, c, 16)]
-    b.append(t(36, 56, kicker, 18, c["muted"], 450))
-    b.append(t(W - 36, 56, "↗", 20, c["faint"], 400, "end"))
-    b.append(t(34, 106, title, 36, c["text"], 600, track=-0.035))
+    W, H = 620, 340
+    b = [f"<defs>{gradient('g', 36, 36, 60, 60)}</defs>", panel(W, H, c, 20)]
+    b.append(f'<rect x="36" y="36" width="60" height="60" rx="16" fill="url(#g)"/>')
+    b.append(t(66, 79, title[0].lower(), 34, "#FFFFFF", font="disp", anchor="middle"))
+    b.append(t(116, 58, kicker, 16.5, c["sea"], 600))
+    b.append(t(114, 94, title.lower(), 36, c["display"], font="disp"))
+    b.append(arrow(W - 36 - 14, 40, 14, c["accent"], 2))
     for i, ln in enumerate(lines):
-        b.append(t(36, 152 + i * 30, ln, 19.5, c["muted"], 400))
-    b.append(f'<line x1="0" y1="258" x2="{W}" y2="258" stroke="{c["line"]}"/>')
-    b.append(t(36, 299, stack, 16, c["faint"], 400, mono=True))
-    b.append(f'<circle cx="{W - 36 - width(tag, 16) - 13:.1f}" cy="293" r="4" fill="{c["ok"]}"/>')
-    b.append(t(W - 36, 299, tag, 16, c["muted"], 450, "end"))
+        b.append(t(36, 160 + i * 30, ln, 19.5, c["muted"], 400))
+    b.append(f'<line x1="0" y1="266" x2="{W}" y2="266" stroke="{c["line"]}"/>')
+    b.append(t(36, 308, stack, 15.5, c["faint"], 400, font="mono"))
+    b.append(f'<circle cx="{W - 36 - width(tag, 16, "sans") * 1.03 - 13:.1f}" cy="302" r="4" fill="{c["accent"]}"/>')
+    b.append(t(W - 36, 308, tag, 16, c["muted"], 500, "end"))
     return svg(W, H, f"{title}: {kicker}", " ".join(lines) + f" Built with {stack.replace(' · ', ', ')}.", "".join(b))
 
 
@@ -325,23 +407,25 @@ def activity(c, total, weeks):
             return 0
         return 1 + sum(n > cut for cut in cuts)
 
-    W, H = 1280, 330
+    W, H = 1280, 340
     cell, gap = 17, 4.2
-    x0, y0 = 72, 120
-    b = [panel(W, H, c, 18)]
-    b.append(t(40, 58, f"{total:,} contributions in the last year", 26, c["text"], 500, track=-0.02))
+    x0, y0 = 72, 130
+    b = [panel(W, H, c, 20)]
+    num = f"{total:,}"
+    b.append(t(40, 70, num, 46, c["display"], font="disp"))
+    b.append(t(40 + width(num, 46, "disp") + 12, 68, "contributions in the last year", 21, c["muted"], 500))
     x = W - 40
     for label, value in (("active days", f"{active}"), ("day longest streak", f"{longest}")):
-        b.append(t(x, 58, label, 19, c["faint"], 400, "end"))
-        x -= width(label, 19) + 7
-        b.append(t(x, 58, value, 22, c["text"], 500, "end"))
-        x -= width(value, 22) + 32
+        b.append(t(x, 66, label, 18, c["faint"], 400, "end"))
+        x -= width(label, 18) * 1.03 + 8
+        b.append(t(x, 68, value, 30, c["display"], font="disp", anchor="end"))
+        x -= width(value, 30, "disp") + 34
     last_month = None
     for wi, week in enumerate(weeks):
         for d, n in week:
             wd = date.fromisoformat(d).isoweekday() % 7
             b.append(f'<rect x="{x0 + wi * (cell + gap):.1f}" y="{y0 + wd * (cell + gap):.1f}" width="{cell}" '
-                     f'height="{cell}" rx="4" fill="{c["heat"][level(n)]}"/>')
+                     f'height="{cell}" rx="5" fill="{c["heat"][level(n)]}"/>')
         month = date.fromisoformat(week[0][0]).strftime("%b")
         if month != last_month and wi < len(weeks) - 2:
             b.append(t(x0 + wi * (cell + gap), y0 - 14, month, 14.5, c["faint"], 400))
@@ -351,7 +435,7 @@ def activity(c, total, weeks):
     lx = W - 40 - 5 * (cell + 4) - 44
     b.append(t(lx - 10, H - 30, "Less", 14, c["faint"], 400, "end"))
     for i in range(5):
-        b.append(f'<rect x="{lx + i * (cell + 4)}" y="{H - 44}" width="{cell}" height="{cell}" rx="4" fill="{c["heat"][i]}"/>')
+        b.append(f'<rect x="{lx + i * (cell + 4)}" y="{H - 44}" width="{cell}" height="{cell}" rx="5" fill="{c["heat"][i]}"/>')
     b.append(t(W - 40, H - 30, "More", 14, c["faint"], 400, "end"))
     b.append(t(40, H - 30, "Private client work included", 14, c["faint"], 400))
     return svg(W, H, f"{total:,} contributions in the last year",
@@ -376,6 +460,8 @@ def main():
         write("hero", name, hero(c))
         write("metrics", name, metrics(c))
         write("trace", name, trace(c))
+        for key in HEADINGS:
+            write(f"h-{key}", name, heading(c, key))
         for key in CARDS:
             write(f"card-{key}", name, card(c, key))
         for stem, label, primary in (("btn-site", "mbilaltaha.com", True), ("btn-linkedin", "LinkedIn", False),
