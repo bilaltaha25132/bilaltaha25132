@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/hero-dark.svg">
-  <img src="./assets/hero-light.svg" width="100%" alt="Muhammad Bilal Taha, Full Stack AI Engineer in Karachi. I build LLM products end to end: RAG pipelines and LangGraph agents, the APIs around them, and the interfaces people actually use. Now building the AI concierge for Abu Dhabi tourism.">
+  <img src="./assets/hero-light.svg" width="100%" alt="Muhammad Bilal Taha, Full Stack AI Engineer in Karachi. I build LLM products end to end: RAG pipelines and LangGraph agents, the APIs around them, and the interfaces people actually use. Building Ask Abu Dhabi on visitabudhabi.ae.">
 </picture>
 
 <p>
@@ -16,15 +16,22 @@ Nearly all of my production code lives in private repos, so this page is a guide
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/metrics-dark.svg">
-  <img src="./assets/metrics-light.svg" width="100%" alt="19 agent tools in production. 300+ daily users on one platform. 2 live AI products in Abu Dhabi. 4.6k contributions since 2024.">
+  <img src="./assets/metrics-light.svg" width="100%" alt="186 commits to the visitabudhabi.ae front end. 19 agent tools in production. 2 live AI products in Abu Dhabi. 300+ daily users on one platform.">
 </picture>
 
-<h2><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/h-now-dark.svg"><img src="./assets/h-now-light.svg" height="64" alt="Now: the AI concierge for Abu Dhabi tourism"></picture></h2>
+<h2><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/h-now-dark.svg"><img src="./assets/h-now-light.svg" height="64" alt="Shipping on visitabudhabi.ae: the AI concierge for Abu Dhabi tourism"></picture></h2>
 
-Working with **Create Group** for the **Department of Culture and Tourism – Abu Dhabi**, I build the conversational AI behind two products, front end and back end:
+Since February 2026 I've been an engineer on **[visitabudhabi.ae](https://www.visitabudhabi.ae)**, the official tourism site of the **Department of Culture and Tourism – Abu Dhabi**, working with **Create Group**. I put the AI concierge on the site, and I build it front end and back end.
 
-- **[Ask Abu Dhabi](https://mbilaltaha.com/work/dct-ai-chatbot)**: the AI assistant inside [visitabudhabi.ae](https://www.visitabudhabi.ae). It answers visitor questions about attractions, dining, hotels and events, and builds itineraries in chat.
-- **[Digital Concierge](https://mbilaltaha.com/work/digital-concierge)**: a standalone AI trip planner with saved sessions, day-by-day itineraries and a live clustered map.
+<a href="https://mbilaltaha.com/work/dct-ai-chatbot"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/shot-ask-abu-dhabi-dark.svg"><img src="./assets/shot-ask-abu-dhabi-light.svg" width="100%" alt="visitabudhabi.ae with the Ask Abu Dhabi panel open: a welcome message and three suggested questions with photos."></picture></a>
+
+**[Ask Abu Dhabi](https://mbilaltaha.com/work/dct-ai-chatbot)** is the AI assistant built into [visitabudhabi.ae](https://www.visitabudhabi.ae). It answers visitor questions about attractions, dining, hotels and events, and builds itineraries in chat.
+
+<a href="https://mbilaltaha.com/work/digital-concierge"><picture><source media="(prefers-color-scheme: dark)" srcset="./assets/shot-digital-concierge-dark.svg"><img src="./assets/shot-digital-concierge-light.svg" width="100%" alt="Digital Concierge: saved sessions, an answer with Yas Island and Ferrari World cards, and a live map of the same places."></picture></a>
+
+**[Digital Concierge](https://mbilaltaha.com/work/digital-concierge)** is the standalone AI trip planner on the same platform, with saved sessions, day-by-day itineraries and a live clustered map.
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="./assets/commits-dark.svg"><img src="./assets/commits-light.svg" width="100%" alt="Selected commits from 186 to the visitabudhabi.ae front end since February 2026, from adding the chatbot to share tokens, accessibility fixes and SSE stream teardown."></picture>
 
 One request moving through the agent. The tool names are the real ones from production.
 

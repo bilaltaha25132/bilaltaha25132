@@ -150,7 +150,7 @@ def hero(c):
     b.append(t(68, 298, "Full Stack AI Engineer · Karachi", 25, "#FCEFDE", 600, track=-0.01))
     b.append(t(68, 340, "I build LLM products end to end: RAG pipelines and LangGraph", 21, ON_GRAD["muted"], 400))
     b.append(t(68, 370, "agents, the APIs around them, and the interfaces people use.", 21, ON_GRAD["muted"], 400))
-    label = "Now building the AI concierge for Abu Dhabi tourism"
+    label = "Building Ask Abu Dhabi on visitabudhabi.ae"
     pw = width(label, 17, "sans") * 1.04 + 64
     b.append(f'<rect x="68" y="398" width="{pw:.0f}" height="44" rx="22" fill="{c["accent"]}"/>'
              f'<circle cx="92" cy="420" r="5" fill="{c["on_accent"]}"/>'
@@ -190,7 +190,7 @@ def hero(c):
 # ---------------------------------------------------------------- section headings
 
 HEADINGS = {
-    "now": ("now building", "the abu dhabi concierge", "Now: the AI concierge for Abu Dhabi tourism"),
+    "now": ("shipping on", "visitabudhabi.ae", "Shipping on visitabudhabi.ae: the AI concierge for Abu Dhabi tourism"),
     "work": ("selected", "work", "Selected work"),
     "about": ("about me,", "as code", "About me, as code"),
     "writing": ("from the", "blog", "Writing"),
@@ -227,8 +227,8 @@ def button(c, label, primary=False):
 
 def metrics(c):
     W, H = 1280, 184
-    tiles = [("19", "agent tools in production"), ("300+", "daily users on one platform"),
-             ("2", "live AI products, Abu Dhabi"), ("4.6k", "contributions since 2024")]
+    tiles = [("186", "commits to visitabudhabi.ae"), ("19", "agent tools in production"),
+             ("2", "live AI products, Abu Dhabi"), ("300+", "daily users on one platform")]
     b = [panel(W, H, c)]
     cw = W / 4
     for i, (num, label) in enumerate(tiles):
@@ -239,8 +239,8 @@ def metrics(c):
         b.append(t(x + 38, 110, num, 64, c["display"], font="disp"))
         b.append(t(x + 40, 148, label, 18.5, c["muted"], 400))
     return svg(W, H, "Impact in numbers",
-               "19 agent tools in production. 300+ daily users on one platform. 2 public AI products for DCT Abu Dhabi. "
-               "4.6k contributions since 2024.", "".join(b))
+               "186 commits to the visitabudhabi.ae front end. 19 agent tools in production. 2 live AI products "
+               "for DCT Abu Dhabi. 300+ daily users on one platform.", "".join(b))
 
 
 # ---------------------------------------------------------------- agent trace
@@ -328,6 +328,96 @@ def trace(c):
                "check_moderation, search_attractions, search_dining, calculate_distance_to_place, search_itineraries "
                "and select_cards_to_display, streams a two-day plan with three place cards over SSE, and sends the "
                "trace to Langfuse and Phoenix.", "".join(b), "".join(css))
+
+
+# ---------------------------------------------------------------- product shots
+
+SHOTS = {
+    "ask-abu-dhabi": ("ask-abu-dhabi.webp", "visitabudhabi.ae", True, "Ask Abu Dhabi",
+                      "visitabudhabi.ae with the Ask Abu Dhabi panel open: a welcome message and three suggested "
+                      "questions with photos, over the Find your pace home page."),
+    "digital-concierge": ("digital-concierge.webp", "Digital Concierge", False, "AI trip planner",
+                          "Digital Concierge: saved chat sessions on the left, an answer with Yas Island and Ferrari "
+                          "World cards in the middle, and a live map of the same places on the right."),
+}
+
+
+def shot(c, key):
+    from PIL import Image  # only the full build needs Pillow; CI runs --activity
+    file, url, lock, label, desc = SHOTS[key]
+    W, BAR = 1280, 64
+    im = Image.open(Path(__file__).resolve().parent / "shots" / file).convert("RGB")
+    ih = round(im.height * W / im.width)
+    buf = io.BytesIO()
+    im.resize((W, ih), Image.LANCZOS).save(buf, "JPEG", quality=84, optimize=True, progressive=True)
+    data = base64.b64encode(buf.getvalue()).decode()
+    H = BAR + ih
+    uw = width(url, 16) * 1.03 + (64 if lock else 40)
+    ux = (W - uw) / 2
+    b = [f"<defs><clipPath id='k'><rect width='{W}' height='{H}' rx='20'/></clipPath>{gradient('g', 0, 0, W, BAR)}</defs>",
+         f'<g clip-path="url(#k)"><rect width="{W}" height="{BAR}" fill="url(#g)"/>'
+         f'<image href="data:image/jpeg;base64,{data}" x="0" y="{BAR}" width="{W}" height="{ih}"/></g>',
+         f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="20" fill="none" stroke="{c["line"]}"/>',
+         t(30, 42, label.lower(), 26, "#FFFFFF", font="disp"),
+         f'<rect x="{ux:.0f}" y="15" width="{uw:.0f}" height="34" rx="17" fill="#000" fill-opacity=".28" '
+         f'stroke="#FFFFFF" stroke-opacity=".18"/>']
+    tx = ux + 20
+    if lock:
+        b.append(f'<g fill="none" stroke="#B8CDD4" stroke-width="1.6"><rect x="{tx:.0f}" y="29" width="11" height="9" rx="2"/>'
+                 f'<path d="M{tx + 2.5:.1f} 29 v-3 a3 3 0 0 1 6 0 v3"/></g>')
+        tx += 22
+    b.append(t(f"{tx:.0f}", 37.5, url, 16, "#E3EEF1", 500))
+    pill = "Live"
+    pw = width(pill, 15) * 1.04 + 42
+    b.append(f'<rect x="{W - 28 - pw:.0f}" y="17" width="{pw:.0f}" height="30" rx="15" fill="#FFFFFF" fill-opacity=".1" '
+             f'stroke="#FFFFFF" stroke-opacity=".25"/><circle class="pulse" cx="{W - 28 - pw + 18:.0f}" cy="32" r="4.5" fill="#00D8CC"/>'
+             + t(f"{W - 28 - pw + 30:.0f}", 37, pill, 15, "#FFFFFF", 500))
+    return svg(W, H, f"{label} in production", desc, "".join(b),
+               ".pulse{animation:pulse 1.6s ease-in-out infinite}@keyframes pulse{50%{opacity:.35}}")
+
+
+# ---------------------------------------------------------------- commit log
+
+COMMITS = [
+    ("2026-08-12", "feat", "Shareable chat sessions with share tokens"),
+    ("2026-07-26", "fix", "Keyboard and screen-reader users couldn't operate parts of the chat"),
+    ("2026-07-26", "perf", "Memoize BotMessage and ChatCarousel, stabilise keys"),
+    ("2026-07-26", "refactor", "Extract sendMessageToApi into a useChatStream hook"),
+    ("2026-07-24", "fix", "Tear down the SSE stream and timers on unmount"),
+    ("2026-07-24", "fix", "Never send an authenticated message with a null user_id"),
+    ("2026-07-13", "fix", "GTM data layer for the Ask Abu Dhabi chatbot"),
+    ("2026-06-18", "feat", "Create an itinerary from a chat card; map markers fixed"),
+    ("2026-06-12", "fix", "Chat map not showing on deployed servers"),
+    ("2026-02-16", "feat", "Add the chatbot to visitabudhabi.ae"),
+]
+
+
+def commits(c):
+    W, TOP, ROW = 1280, 88, 50
+    H = TOP + 28 + ROW * len(COMMITS) + 52
+    kind = {"feat": c["sea"], "fix": c["accent"], "perf": "#FF7061", "refactor": c["muted"]}
+    b = [f"<defs>{gradient('g', 0, 0, W, TOP)}<clipPath id='k'><rect width='{W}' height='{H}' rx='20'/></clipPath></defs>",
+         f'<g clip-path="url(#k)"><rect width="{W}" height="{H}" fill="{c["panel"]}"/>'
+         f'<rect width="{W}" height="{TOP}" fill="url(#g)"/></g>',
+         f'<rect x="0.5" y="0.5" width="{W - 1}" height="{H - 1}" rx="20" fill="none" stroke="{c["line"]}"/>',
+         t(34, 56, "git log", 36, "#FFFFFF", font="disp"),
+         t(34 + width("git log", 36, "disp") + 16, 55, "visitabudhabi.ae front end, my commits", 20, ON_GRAD["muted"], 500),
+         t(W - 34, 55, "186 since Feb 2026", 18, "#FFFFFF", 500, "end", font="mono")]
+    y = TOP + 28
+    for i, (d, k, msg) in enumerate(COMMITS):
+        cy = y + ROW / 2
+        b.append(t(34, cy + 6, d, 16, c["faint"], 400, font="mono"))
+        kw = width(k, 14.5, "mono") + 22
+        b.append(f'<rect x="170" y="{cy - 14}" width="{kw:.0f}" height="28" rx="14" fill="{kind[k]}" fill-opacity=".14" '
+                 f'stroke="{kind[k]}" stroke-opacity=".45"/>' + t(170 + kw / 2, cy + 5, k, 14.5, kind[k], 500, "middle", font="mono"))
+        b.append(t(290, cy + 6.5, msg, 19, c["text"], 450))
+        if i < len(COMMITS) - 1:
+            b.append(f'<line x1="34" y1="{y + ROW}" x2="{W - 34}" y2="{y + ROW}" stroke="{c["line2"]}"/>')
+        y += ROW
+    b.append(t(34, H - 24, "Selected from 186 commits, Feb to Aug 2026. The full log lives in a private client repo.", 15, c["faint"], 400))
+    return svg(W, H, "My commits to the visitabudhabi.ae front end",
+               "Selected commits from 186 to the visitabudhabi.ae front end since February 2026: "
+               + "; ".join(f"{d} {k}: {m}" for d, k, m in COMMITS) + ".", "".join(b))
 
 
 # ---------------------------------------------------------------- project cards
@@ -460,6 +550,9 @@ def main():
         write("hero", name, hero(c))
         write("metrics", name, metrics(c))
         write("trace", name, trace(c))
+        write("commits", name, commits(c))
+        for key in SHOTS:
+            write(f"shot-{key}", name, shot(c, key))
         for key in HEADINGS:
             write(f"h-{key}", name, heading(c, key))
         for key in CARDS:
